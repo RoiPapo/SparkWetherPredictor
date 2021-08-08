@@ -69,14 +69,14 @@ def StaticStream():
         .read \
         .format("kafka") \
         .option("kafka.bootstrap.servers", kafka_server) \
-        .option("subscribe", "AS") \
+        .option("subscribe", "EZ, US") \
         .option("startingOffsets", "earliest") \
         .load()
     kafka_value_df = kafka_raw_df.selectExpr("CAST(value AS STRING)")
     json_df = kafka_value_df.select(F.from_json(F.col("value"), schema=noaa_schema).alias('json'))
     # Flatten the nested object:
     kafka_df = json_df.select("json.*")
-    kafka_df.show()
+    # kafka_df.show()
     return os, spark, sc, kafka_df
 
 
