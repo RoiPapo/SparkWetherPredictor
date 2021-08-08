@@ -12,14 +12,14 @@ import matplotlib.pyplot as plt
 """
 TODO:
 
- ASK:
- 1. do we load enoght ?
- 2. do our maskanot mast be realated to PRCP
- 3. can we hold seperate table for each maskena ?
- 4. does our code should show the plots or its on another notebook
- 5. should we keep the data of our maskanot in the DB server ? or can we show graph on the fly?
- 6. how can we overrite TOO LONG time of waiting ? cluster is not faster!
- 7. what prediction shhould we show ? prcp where ? how ? and when ?
+Qs for Afik's reception hour:
+1. Do we load enough?
+2. Do our insights mast be related to PRCP?
+3. Can we hold a separate table for each insight?
+4. Does our code should show the plots or its on another notebook?
+5. Should we keep the data of our insights in the DB server, or can we show graph on the fly?
+6. How can we overwrite TOO LONG time of waiting? cluster is not faster!
+7. What prediction should we show? PRCP where, how when?
  
 1. Data Analysis:
     a. Derive a temporal-based insight:
@@ -40,12 +40,19 @@ Wind records may be irrelevant.
 
 
 def init_spark(app_name: str):
+    """
+    Spark initialization
+    """
     spark = SparkSession.builder.appName(app_name).getOrCreate()
     sc = spark.sparkContext
     return spark, sc
 
 
 def StaticStream():
+    """
+    Initialized Spark, defines the data schema and reads from Kafka into a static DataFrame
+    :return: Spark variables and kafka_df which contains the data
+    """
     os.environ['PYSPARK_SUBMIT_ARGS'] = "--packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.1," \
                                         "com.microsoft.azure:spark-mssql-connector_2.12:1.1.0 pyspark-shell"
     spark, sc = init_spark('RoiAndYarin')
@@ -62,17 +69,24 @@ def StaticStream():
         .read \
         .format("kafka") \
         .option("kafka.bootstrap.servers", kafka_server) \
-        .option("subscribe", "CH") \
+        .option("subscribe", "AS") \
         .option("startingOffsets", "earliest") \
         .load()
     kafka_value_df = kafka_raw_df.selectExpr("CAST(value AS STRING)")
     json_df = kafka_value_df.select(F.from_json(F.col("value"), schema=noaa_schema).alias('json'))
     # Flatten the nested object:
     kafka_df = json_df.select("json.*")
+    kafka_df.show()
     return os, spark, sc, kafka_df
 
 
 def ReadDf(spark, tableName):
+    """
+
+    :param spark:
+    :param tableName:
+    :return:
+    """
     os.environ['PYSPARK_SUBMIT_ARGS'] = "--packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.1," \
                                         "com.microsoft.azure:spark-mssql-connector_2.12:1.1.0 pyspark-shell"
     server_name = "jdbc:sqlserver://technionddscourse.database.windows.net"
@@ -93,9 +107,13 @@ def ReadDf(spark, tableName):
     return jdbcDF
 
 
-
-
 def readStreamData(spark, flag="false"):
+    """
+
+    :param spark:
+    :param flag:
+    :return:
+    """
     os.environ['PYSPARK_SUBMIT_ARGS'] = "--packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.1," \
                                         "com.microsoft.azure:spark-mssql-connector_2.12:1.1.0 pyspark-shell"
     # spark, sc = init_spark('RoiAndYarin')
@@ -115,7 +133,7 @@ def readStreamData(spark, flag="false"):
             .option("subscribe", "EZ, US") \
             .option("startingOffsets", "earliest") \
             .load() \
-            .limit(100000000) \
+            .limit(10000) \
             .selectExpr("CAST(value AS STRING)") \
             .select(F.from_json(F.col("value"), schema=noaa_schema).alias('json')) \
             .select("json.*") \
@@ -140,9 +158,8 @@ def readStreamData(spark, flag="false"):
             .drop("Q_Flag") \
             .withColumn("fullDate", F.to_date(F.concat(F.col("Date")), "yyyyMMdd")) \
             .groupBy(['Stationid', 'Year']).pivot('Variable').agg(F.avg("value")).orderBy("Year") \
-            .drop("Date")\
+            .drop("Date") \
             .show()
-
 
     query = streaming_input_df \
         .writeStream \
@@ -155,6 +172,12 @@ def readStreamData(spark, flag="false"):
 
 
 def writeToserver(df, tableName):
+    """
+    Writes the Dataframe 'df' to the server under the name 'tableName'
+    :param df: Dataframe
+    :param tableName: The name of the table in the server that will contain the Dataframe 'df'
+    :return: -
+    """
     os.environ['PYSPARK_SUBMIT_ARGS'] = "--packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.1," \
                                         "com.microsoft.azure:spark-mssql-connector_2.12:1.1.0 pyspark-shell"
     server_name = "jdbc:sqlserver://technionddscourse.database.windows.net"
@@ -181,6 +204,12 @@ def writeToserver(df, tableName):
 
 
 def transformChangePerContinent(df, GeoData="null"):
+    """
+
+    :param df:
+    :param GeoData: GeoData(FIPS, Continent, CountryName) table on the DB, used for extracting the country and continent
+    :return:
+    """
     # Df 'Date' column transformation
     # df = df.withColumn("fullDate", F.to_date(F.concat(F.col("Date")), "yyyyMMdd"))
     df = df.withColumn("Year", F.year("fullDate"))
@@ -211,6 +240,11 @@ def transformChangePerContinent(df, GeoData="null"):
 
 
 def temporal_insight(df):
+    """
+
+    :param df:
+    :return:
+    """
     print(df.count())
     # Temporal insight - global max/min temperature trends
 
@@ -245,10 +279,20 @@ def temporal_insight(df):
 
 
 def spatial_insight(df):
+    """
+
+    :param df:
+    :return:
+    """
     pass
 
 
 def make_first_graph(dict):
+    """
+
+    :param dict:
+    :return:
+    """
     # x = np.arange(-4,2*np.pi, 0.3)
     # y = 2*np.sin(x)
     # y2 = 3*np.cos(x)
@@ -264,13 +308,20 @@ def make_first_graph(dict):
 
 
 def snowTransform(kafka_df):
+    """
+
+    :param kafka_df:
+    :return:
+    """
     Dfsnow = kafka_df.select(['FIPS', 'Year', 'Variable', 'Value', 'Q_Flag'])
     Dfsnow = Dfsnow.filter("Variable ==SNOW").limit(300000)
 
 
+
+
 def main():
     os, spark, sc, kafka_df = StaticStream()
-    spark, sc = init_spark('RoiAndYarin')
+    # spark, sc = init_spark('RoiAndYarin')
     # print(initiateServer())
     readStreamData(spark)
     # GeoData = ReadDf(spark, tableName="GeoData")
