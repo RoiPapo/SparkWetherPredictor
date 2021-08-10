@@ -317,19 +317,79 @@ def snowTransform(kafka_df):
     Dfsnow = Dfsnow.filter("Variable ==SNOW").limit(300000)
 
 
+def fixed_width_txtfile_converter(filename, colspecs, colnames, coltypes):
+    """
+    Creates a pd.dataframe from a given fixed-width txt file.
+    :param filename: Name of the txt file in fixed-width format. File must be in the project directory
+    :param colspecs: A list of 2-tuples with ints, representing the spacing of the columns
+    :param colnames: A list of strings representing column names for the df
+    :param coltypes: A dictionary (keys are str, values are np types or str) representing column types for the df
+    :return: a pd.dataframe of the fixed-width file
+    """
+
+    """
+    About fixed-width format, from the project's guidelines:
+    The file format is a fixed-width format. In fixed width format, each variable has a fixed width in characters.
+    There is no delimiter.
+    """
+
+    # Start by converting the fixed-width file to CSVs:
+    col_specs = colspecs
+    col_names = colnames
+    read_file = pd.read_fwf(f"{filename}.txt", colspecs=col_specs)
+    read_file.to_csv(f"{filename}.csv", sep=';', header=col_names, index=False)
+
+    # Break the single column
+    col_types = coltypes
+    read_file = pd.read_csv(f"{filename}.csv", delimiter=';', dtype=col_types)
+    os.remove(f"{filename}.csv")
+    # read_file.to_csv(f"{filename}.csv", sep=';', header=col_names, index=False)
+    # print(read_file.head(10))
+    # print(read_file.loc[67606])
+    # print(read_file.loc[1004])
+    # print(f"{filename} preview:")
+    return read_file
 
 
 def main():
-    os, spark, sc, kafka_df = StaticStream()
+    # os, spark, sc, kafka_df = StaticStream()
     # spark, sc = init_spark('RoiAndYarin')
     # print(initiateServer())
-    readStreamData(spark)
+    # readStreamData(spark)
     # GeoData = ReadDf(spark, tableName="GeoData")
     # dict1 = transformChangePerContinent(kafka_df, GeoData)
     # make_first_graph(dict1)
     # temporal_insight(kafka_df)
 
     # writeToserver(tDf, "AvgPRCPPerYeat")
+
+    # Start by creating DFs for the txt files
+    # ghcnd-stations.txt:
+    stations_colspecs = [(0, 11), (12, 20), (22, 30), (31, 37), (38, 40), (41, 71), (72, 75), (76, 79), (80, 85)]
+    stations_col_names = ['StationID', 'LATITUDE', 'LONGITUDE', 'ELEVATION', 'STATE', 'NAME', 'GSN_FLAG',
+                          'HCN/CRN_FLAG',
+                          'WMO_ID']
+    stations_col_types = {'StationID': str, 'LATITUDE': np.float64, 'LONGITUDE': np.float64, 'ELEVATION': np.float64,
+                          'STATE': str, 'NAME': str, 'GSN_FLAG': str, 'HCN/CRN_FLAG': str, 'WMO_ID': str}
+
+    stations_df = fixed_width_txtfile_converter("ghcnd-stations", stations_colspecs, stations_col_names,
+                                                stations_col_types)
+    # print(stations_df)
+
+    # ghcnd-inventory.txt:
+    inventory_colspecs = [(0, 11), (12, 20), (22, 30), (31, 35), (36, 40), (41, 45)]
+    inventory_col_names = ['StationID', 'LATITUDE', 'LONGITUDE', 'VARIABLE', 'FIRSTYEAR', 'LASTYEAR']
+    inventory_col_types = {'StationID': str, 'LATITUDE': np.float64, 'LONGITUDE': np.float64, 'VARIABLE': str,
+                           'FIRSTYEAR': np.int64, 'LASTYEAR': np.int64}
+
+    inventory_df = fixed_width_txtfile_converter("ghcnd-inventory", inventory_colspecs, inventory_col_names,
+                                                 inventory_col_types)
+    # print(inventory_df)
+
+    # TODO:
+    # 3. Join DFs on StationID to get 'ghcnd-stations-inventory'
+    # 4. Join the data from the server with the 'ghcnd-stations-inventory' CSV on StationID
+    # 5. Create a new table 'FullData'
 
 
 if __name__ == '__main__':
