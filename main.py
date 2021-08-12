@@ -173,8 +173,9 @@ def readStreamData(spark, flag="false"):
 
 def writeToserver(df, tableName):
     """
-    Writes the Dataframe 'df' to the server under the name 'tableName'
-    :param df: Dataframe
+    Writes the Spark Dataframe 'df' to the server under the name 'tableName', where 'tableName' is an existing table on
+    the server
+    :param df: Spark Dataframe
     :param tableName: The name of the table in the server that will contain the Dataframe 'df'
     :return: -
     """
@@ -321,7 +322,7 @@ def fixed_width_txtfile_converter(filename, colspecs, colnames, coltypes):
     """
     Creates a pd.dataframe from a given fixed-width txt file.
     :param filename: Name of the txt file in fixed-width format. File must be in the project directory
-    :param colspecs: A list of 2-tuples with ints, representing the spacing of the columns
+    :param colspecs: A list of 2-tuples with ints, representing the widths of the columns
     :param colnames: A list of strings representing column names for the df
     :param coltypes: A dictionary (keys are str, values are np types or str) representing column types for the df
     :return: a pd.dataframe of the fixed-width file
@@ -352,8 +353,8 @@ def fixed_width_txtfile_converter(filename, colspecs, colnames, coltypes):
 
 
 def main():
-    # os, spark, sc, kafka_df = StaticStream()
-    # spark, sc = init_spark('RoiAndYarin')
+    os, spark, sc, kafka_df = StaticStream()
+    # spark, sc = init_spark('RoiAndYarin')  # Unnecessary, runs inside StaticSteams()
     # print(initiateServer())
     # readStreamData(spark)
     # GeoData = ReadDf(spark, tableName="GeoData")
@@ -363,33 +364,36 @@ def main():
 
     # writeToserver(tDf, "AvgPRCPPerYeat")
 
-    # Start by creating DFs for the txt files
-    # ghcnd-stations.txt:
-    stations_colspecs = [(0, 11), (12, 20), (22, 30), (31, 37), (38, 40), (41, 71), (72, 75), (76, 79), (80, 85)]
-    stations_col_names = ['StationID', 'LATITUDE', 'LONGITUDE', 'ELEVATION', 'STATE', 'NAME', 'GSN_FLAG',
-                          'HCN/CRN_FLAG',
-                          'WMO_ID']
-    stations_col_types = {'StationID': str, 'LATITUDE': np.float64, 'LONGITUDE': np.float64, 'ELEVATION': np.float64,
-                          'STATE': str, 'NAME': str, 'GSN_FLAG': str, 'HCN/CRN_FLAG': str, 'WMO_ID': str}
+    # The next 30 lines convert the txt files to tables on the server, do NOT run them again
 
-    stations_df = fixed_width_txtfile_converter("ghcnd-stations", stations_colspecs, stations_col_names,
-                                                stations_col_types)
-    # print(stations_df)
-
-    # ghcnd-inventory.txt:
-    inventory_colspecs = [(0, 11), (12, 20), (22, 30), (31, 35), (36, 40), (41, 45)]
-    inventory_col_names = ['StationID', 'LATITUDE', 'LONGITUDE', 'VARIABLE', 'FIRSTYEAR', 'LASTYEAR']
-    inventory_col_types = {'StationID': str, 'LATITUDE': np.float64, 'LONGITUDE': np.float64, 'VARIABLE': str,
-                           'FIRSTYEAR': np.int64, 'LASTYEAR': np.int64}
-
-    inventory_df = fixed_width_txtfile_converter("ghcnd-inventory", inventory_colspecs, inventory_col_names,
-                                                 inventory_col_types)
-    # print(inventory_df)
-
-    # TODO:
-    # 3. Join DFs on StationID to get 'ghcnd-stations-inventory'
-    # 4. Join the data from the server with the 'ghcnd-stations-inventory' CSV on StationID
-    # 5. Create a new table 'FullData'
+    # # Creating DFs for the txt files and uploading them to the server
+    # stations_colspecs = [(0, 11), (12, 20), (22, 30), (31, 37), (38, 40), (41, 71), (72, 75), (76, 79), (80, 85)]
+    # stations_col_names = ['StationID', 'LATITUDE', 'LONGITUDE', 'ELEVATION', 'STATE', 'NAME', 'GSN_FLAG',
+    #                       'HCN/CRN_FLAG',
+    #                       'WMO_ID']
+    # stations_col_types = {'StationID': str, 'LATITUDE': np.float64, 'LONGITUDE': np.float64, 'ELEVATION': np.float64,
+    #                       'STATE': str, 'NAME': str, 'GSN_FLAG': str, 'HCN/CRN_FLAG': str, 'WMO_ID': str}
+    #
+    # stations_df = fixed_width_txtfile_converter("ghcnd-stations", stations_colspecs, stations_col_names,
+    #                                             stations_col_types)  # pandas.DataFrame of ghcnd-stations
+    #
+    # inventory_colspecs = [(0, 11), (12, 20), (22, 30), (31, 35), (36, 40), (41, 45)]
+    # inventory_col_names = ['StationID', 'LATITUDE', 'LONGITUDE', 'VARIABLE', 'FIRSTYEAR', 'LASTYEAR']
+    # inventory_col_types = {'StationID': str, 'LATITUDE': np.float64, 'LONGITUDE': np.float64, 'VARIABLE': str,
+    #                        'FIRSTYEAR': np.int64, 'LASTYEAR': np.int64}
+    #
+    # inventory_df = fixed_width_txtfile_converter("ghcnd-inventory", inventory_colspecs, inventory_col_names,
+    #                                              inventory_col_types)  # pandas.DataFrame of ghcnd-inventory
+    #
+    # # Upload to the server
+    # stations_df[['GSN_FLAG', 'WMO_ID', 'STATE', 'HCN/CRN_FLAG']] = stations_df[  # Fixes the createDataFrame() function
+    #     ['GSN_FLAG', 'WMO_ID', 'STATE', 'HCN/CRN_FLAG']].astype(str)             # call in the next row (Throws an
+    #                                                                              # exception for some reason)
+    # stations_spark_df = spark.createDataFrame(stations_df)  # spark.DataFrame of ghcnd-stations
+    # writeToserver(stations_spark_df, 'GHCND_Stations')
+    #
+    # inventory_spark_df = spark.createDataFrame(inventory_df)  # spark.DataFrame of ghcnd-inventory
+    # writeToserver(inventory_spark_df, 'GHCNDInventory')  # Probably too big for writeToserver(), imported manually
 
 
 if __name__ == '__main__':
