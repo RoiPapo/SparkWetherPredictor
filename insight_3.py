@@ -51,7 +51,7 @@ def readStreamData(country, amount, transformation_func):
 
     query = streaming_input_df \
         .writeStream \
-        .trigger(processingTime='120 seconds') \
+        .trigger(processingTime='140 seconds') \
         .foreachBatch(lambda df, epoch_id: transformation_func(df)) \
         .start() \
         .awaitTermination(int(7200))
@@ -63,7 +63,8 @@ def spatial_info_pre_processing(df):
     df = df.filter(F.col("Variable") == 'SNOW').withColumn("Month", F.month("fullDate"))
     df = df.filter(F.col("Month") == "1").withColumnRenamed('ELEVATION', 'Elevation')
     df = df.join(df_stations, on='StationID').drop('Variable', 'StationId').withColumnRenamed('Value', 'SNOW')
-    df = df.groupBy(['Elevation']).agg(F.sum('SNOW').alias('Sum_Snow'), F.count('SNOW').alias('Count_Snow')).orderBy(F.col('Elevation').asc())
+    df = df.groupBy(['Elevation']).agg(F.sum('SNOW').alias('Sum_Snow'), F.count('SNOW').alias('Count_Snow')).orderBy(
+        F.col('Elevation').asc())
     write_to_server(df, 'Insight3_pre_Canada_Snow')
 
 
@@ -83,7 +84,7 @@ def write_to_server(df, tableName):
     try:
         df.write \
             .format(format_str2) \
-            .mode("append") \
+            .mode("overwrite") \
             .option("url", url) \
             .option("dbtable", table_name) \
             .option("user", username) \
@@ -122,10 +123,18 @@ def read_df_from_sql_server(tableName):
     return jdbcDF
 
 
+def spatial_info_post_processing():
+    df = read_df_from_sql_server('Insight3_pre_Canada_Snow')
+    df = df.groupBy('Elevation').agg(F.sum(F.col('Sum_Snow')).alias('Sum_Snow'),
+                                     F.sum(F.col('Count_Snow')).alias('Count_Snow'))
+    df = df.withColumn('avg_Snow', F.col('Sum_Snow') /
+                       F.col('Count_Snow')).drop(F.col('Sum_Snow')) \
+        .drop(F.col('Count_Snow')).sort(F.col('Elevation'))
+    write_to_server(df, 'Insight3_post_Canada_Snow')
+
+
 def main():
-    amount = 5000000
-    amount = 5000
-    readStreamData('CA', amount, spatial_info_pre_processing)
+    spatial_info_post_processing()
 
 
 if __name__ == '__main__':
