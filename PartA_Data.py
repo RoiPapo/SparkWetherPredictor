@@ -76,7 +76,7 @@ def DynamicStreamData(country, amount, transformation_func):
         .selectExpr("CAST(value AS STRING)") \
         .select(F.from_json(F.col("value"), schema=noaa_schema).alias('json')) \
         .select("json.*") \
-        .drop("M_Flag", "S_Flag", "ObsTime", 'Q_flag') \
+        .drop("M_Flag", "S_Flag", "ObsTime") \
         .withColumn("fullDate", F.to_date(F.concat(F.col("Date")), "yyyyMMdd")) \
         .drop("Date") \
         .filter(F.col("Q_Flag").isNull()) \
