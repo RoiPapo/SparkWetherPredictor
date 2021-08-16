@@ -118,9 +118,34 @@ def write_to_server(df, tableName):
         print("Connector write failed", error)
 
 
+def post_pre_proccessing():
+    df = read_df_from_sql_server('bonus').withColumn('month', F.month(F.col('fullDate'))).drop(F.col('fullDate'))
+    df = df.groupBy(['StationId', 'month']).agg(F.sum(F.col('Snow_sum')).alias('Snow_sum'),
+                                                   F.sum(F.col('Snow_count')).alias('Snow_count'),
+                                                   F.sum(F.col('PRCP_sum')).alias('PRCP_sum'),
+                                                   F.sum(F.col('PRCP_count')).alias('PRCP_count'),
+                                                   F.sum(F.col('SNWD_sum')).alias('SNWD_sum'),
+                                                   F.sum(F.col('SNWD_count')).alias('SNWD_count'),
+                                                   F.sum(F.col('TMAX_sum')).alias('TMAX_sum'),
+                                                   F.sum(F.col('TMAX_count')).alias('TMAX_count'),
+                                                   F.sum(F.col('TMIN_sum')).alias('TMIN_sum'),
+                                                   F.sum(F.col('TMIN_count')).alias('TMIN_count'))
+    df = df.withColumn('avg_Snow', F.col('Snow_sum') /F.col('Snow_count')).drop(F.col('Snow_sum')) \
+        .drop(F.col('Snow_count'))
+    df = df.withColumn('PRCP_avg', F.col('PRCP_sum') / F.col('PRCP_count')).drop(F.col('PRCP_sum')) \
+        .drop(F.col('PRCP_count'))
+    df = df.withColumn('SNWD_AVG', F.col('SNWD_sum') / F.col('SNWD_count')).drop(F.col('SNWD_sum')) \
+        .drop(F.col('SNWD_count'))
+    df = df.withColumn('TMAX_avg', F.col('TMAX_sum') / F.col('TMAX_count')).drop(F.col('TMAX_sum')) \
+        .drop(F.col('TMAX_count'))
+    df = df.withColumn('TMIN_avg', F.col('TMIN_sum') / F.col('TMIN_count')).drop(F.col('TMIN_sum')) \
+        .drop(F.col('TMIN_count'))
+    df = df.drop(F.col('month'))
+    write_to_server(df, 'bonus_post')
+
+
 def main():
-    amount = 5000000
-    readStreamData('CA', amount, bonus_data)
+    post_pre_proccessing()
 
 
 if __name__ == '__main__':
