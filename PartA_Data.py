@@ -76,7 +76,7 @@ def DynamicStreamData(country, amount, transformation_func):
         .selectExpr("CAST(value AS STRING)") \
         .select(F.from_json(F.col("value"), schema=noaa_schema).alias('json')) \
         .select("json.*") \
-        .drop("M_Flag", "S_Flag", "ObsTime") \
+        .drop("M_Flag", "S_Flag", "ObsTime", 'Q_flag') \
         .withColumn("fullDate", F.to_date(F.concat(F.col("Date")), "yyyyMMdd")) \
         .drop("Date") \
         .filter(F.col("Q_Flag").isNull()) \
@@ -246,8 +246,27 @@ def mlib_data(df):
     writeToserver(df, "mlib_data")
 
 
+def ml_lib_post_processing():
+    df = read_df_from_sql_server('mlib_data').filter('year > 1970')
+    df = df.groupBy(['StationID', 'year', 'month']).agg(F.sum(F.col('SNOW_sum')).alias('Snow_sum'),
+                                                        F.sum(F.col('SNOW_count')).alias('Snow_count'),
+                                                        F.sum(F.col('TMAX_sum')).alias('TMAX_sum'),
+                                                        F.sum(F.col('TMAX_count')).alias('TMAX_count'),
+                                                        F.sum(F.col('TMIN_sum')).alias('TMIN_sum'),
+                                                        F.sum(F.col('TMIN_count')).alias('TMIN_count'),
+                                                        F.sum(F.col('PRCP_sum')).alias('PRCP_sum'),
+                                                        F.sum(F.col('PRCP_count')).alias('PRCP_count'))
+    df = df.withColumn('Snow_avg', F.col('Snow_sum') / F.col('Snow_count')) \
+        .withColumn('TMAX_avg', F.col('TMAX_sum') / F.col('TMAX_count')) \
+        .withColumn('TMIN_avg', F.col('TMIN_sum') / F.col('TMIN_count')) \
+        .withColumn('PRCP_avg', F.col('PRCP_sum') / F.col('PRCP_count'))
+    df = df.drop('Snow_sum').drop('Snow_count').drop('TMAX_sum').drop('TMAX_count').drop('TMIN_sum').drop('TMIN_count') \
+        .drop('PRCP_sum').drop('PRCP_count')
+    writeToserver(df, 'mlib_data_post')
+
+
 # -------------------Bonus-Data-------------------------
-def bonus_data(df):
+def pre_bonus_data(df):
     df = df.filter(
         "Variable == 'PRCP' or Variable == 'SNOW' or Variable == 'SNWD' or Variable = 'TMAX' or Variable == 'TMIN'"). \
         withColumn("month", F.month("fullDate"))
@@ -257,7 +276,33 @@ def bonus_data(df):
     writeToserver(df, "bonus_data")
 
 
-# -------------------------------------------------------
+def post_bonus_data():
+    df = read_df_from_sql_server('bonus_data').withColumn('month', F.month(F.col('fullDate'))).drop(F.col('fullDate'))
+    df = df.groupBy(['StationId', 'month']).agg(F.sum(F.col('Snow_sum')).alias('Snow_sum'),
+                                                F.sum(F.col('Snow_count')).alias('Snow_count'),
+                                                F.sum(F.col('PRCP_sum')).alias('PRCP_sum'),
+                                                F.sum(F.col('PRCP_count')).alias('PRCP_count'),
+                                                F.sum(F.col('SNWD_sum')).alias('SNWD_sum'),
+                                                F.sum(F.col('SNWD_count')).alias('SNWD_count'),
+                                                F.sum(F.col('TMAX_sum')).alias('TMAX_sum'),
+                                                F.sum(F.col('TMAX_count')).alias('TMAX_count'),
+                                                F.sum(F.col('TMIN_sum')).alias('TMIN_sum'),
+                                                F.sum(F.col('TMIN_count')).alias('TMIN_count'))
+    df = df.withColumn('avg_Snow', F.col('Snow_sum') / F.col('Snow_count')).drop(F.col('Snow_sum')) \
+        .drop(F.col('Snow_count'))
+    df = df.withColumn('PRCP_avg', F.col('PRCP_sum') / F.col('PRCP_count')).drop(F.col('PRCP_sum')) \
+        .drop(F.col('PRCP_count'))
+    df = df.withColumn('SNWD_AVG', F.col('SNWD_sum') / F.col('SNWD_count')).drop(F.col('SNWD_sum')) \
+        .drop(F.col('SNWD_count'))
+    df = df.withColumn('TMAX_avg', F.col('TMAX_sum') / F.col('TMAX_count')).drop(F.col('TMAX_sum')) \
+        .drop(F.col('TMAX_count'))
+    df = df.withColumn('TMIN_avg', F.col('TMIN_sum') / F.col('TMIN_count')).drop(F.col('TMIN_sum')) \
+        .drop(F.col('TMIN_count'))
+    df = df.drop(F.col('month'))
+    writeToserver(df, 'bonus_post')
+
+
+# ---------------------------------------------------
 
 
 def main():
@@ -273,8 +318,10 @@ def main():
     spatial_info_post_processing()  # Data for Insight3
 
     streamData('CA', amount_per_batch, mlib_data, "dynamic")  # Data for learning
+    ml_lib_post_processing()
 
-    streamData('CA', amount_per_batch, bonus_data, "dynamic")  # Data for Bonus
+    streamData('CA', amount_per_batch, pre_bonus_data, "dynamic")  # Data for Bonus
+    post_bonus_data()
 
 
 if __name__ == '__main__':
