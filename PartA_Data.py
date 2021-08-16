@@ -241,7 +241,7 @@ def mlib_data(df):
                                                                                                  F.month("fullDate"))
     df = df.filter("month == '1' or month == '2'")
     df = df.withColumn("year", F.year("fullDate"))
-    df = df.groupBy(['StationId', 'year', 'month']).pivot('Variable').agg(F.avg("value").alias('avg'),
+    df = df.groupBy(['StationId', 'year', 'month']).pivot('Variable').agg(F.sum("value").alias('sum'),
                                                                           F.count("value").alias('count')).show()
     writeToserver(df, "mlib_data")
 
