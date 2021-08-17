@@ -222,7 +222,7 @@ def spatial_info_post_processing():
         F.col("Elevation") < 1850).filter(F.col("avg_Snow") < 82)
     writeToserver(df, 'insight3_post_USA_Snow')
 
-
+#-------------------AppendixData----------------------
 def WriteAppendixData():
     spark = SparkSession.builder.appName('weather').getOrCreate()
     station_df = spark.read.text('ghcnd-stations.txt')
@@ -231,7 +231,14 @@ def WriteAppendixData():
                                    station_df.value.substr(22, 9).cast("float").alias('longitude'),
                                    station_df.value.substr(32, 7).cast("float").alias('longitude'))
     writeToserver(station_df, 'GHCND_Stations')
-    # Geo Data is a table we created manualy to convert FIPS country name and continent
+    df_stations = station_df
+    df_stations.createOrReplaceTempView("tempView")
+    data_to_save = spark.sql("""
+    select StationID, LATITUDE, LONGITUDE, ELEVATION
+    FROM tempView
+    WHERE where StationID like 'CA%';""")
+    writeToserver(data_to_save, "StationsForClustering")
+    # Geo Data is a table we created manualy to convert FIPS country name and continent aviadable at:
     # url = "https://raw.githubusercontent.com/RoiPapo/SparkWetherPredictor/main/GeoData.csv"
 
 
@@ -305,10 +312,12 @@ def post_bonus_data():
 # ---------------------------------------------------
 
 
+
 def main():
     WriteAppendixData()
     amount_per_batch = 5000000
-    streamData("EZ", amount_per_batch, temporal_insight_pre, "dynamic")  # Data for Insight1
+    
+	streamData("EZ", amount_per_batch, temporal_insight_pre, "dynamic")  # Data for Insight1
     temporal_insight_post()  # Data for Insight1
 
     streamData("EZ, US, CH, FR", amount_per_batch, tempo_spatial_pre, "dynamic")  # Data for Insight2
